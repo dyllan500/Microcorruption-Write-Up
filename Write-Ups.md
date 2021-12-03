@@ -128,3 +128,12 @@ If we run the program we get the message that passwords can only be as big as 16
 ### Solved
 
 Password = 41414141414141414141414141414141cb
+
+## Cusco
+
+
+When we put in a password longer than 16 characters we get this message, "insn address unaligned", in the debugger console. Normally the message is "CPUOFF flag set; program no longer running. CPU must now be reset". This means we are possible overwritting the instruction pointer. If we use the password, ABCDEFGHIJKLMNOPQRSTUVWXYZ, and put a breakpoint on the return call in the login function. If we step once we see that in the instruction pointer is 5251 or RQ. That means we are overwriting the pointer. If we add the location of the unlock_door function, 4446, in place RQ in our password, we can get the program to go there and unlock the door for us. Converting the everything to hex and swapping the unlock_door function's location for endianness solves this challenge.
+
+### Solved
+
+Password = 414243444546474849505152535455564644
