@@ -165,7 +165,7 @@ password = cf29
 ## Whitehorse
 
 
-If we enter a password greater than 16 characters we get the error "insn address unaligned" again meaning we are overwriting the instruction pointer. Unlike the level, *enter old  level, there is no function we can call to unlock the door. This means we need to make out own function that unlocks the door. How we will do this is be looking in the manual for the different types of interrupts. The 0x7f interrupt will unlock the door for us, and it doesn't require any arguments to do so. Now we can use the assembly tool to assemble our function and get it's shell code, 30127f00b0123245. Next we will enter the alphabet and see where we overwrite the instruction pointer at. The instruction pointer this time has 5251 or RQ in it. This means the instruction pointer is overwritten after exactly 16 characters. Now we need to tell it where to point to which the stack where the user entered password is, is a great place because our shellcode will be there. Looking at the memory dump window we see that the user entered password is located at 3aae. Which means that needs to be after 16 characters in the password. The shellcode we have only takes up 8 characters, so we need 8 more to pad the password with. Entering the our created password solves the challenge.
+If we enter a password greater than 16 characters we get the error "insn address unaligned" again meaning we are overwriting the instruction pointer. Unlike the level, Hanoi, there is no function we can call to unlock the door. This means we need to make our own function that unlocks the door. How we will do this is be looking in the manual for the different types of interrupts. The 0x7f interrupt will unlock the door for us, and it doesn't require any arguments to do so. Now we can use the assembly tool to assemble our function and get it's shell code, 30127f00b0123245. Next we will enter the alphabet and see where we overwrite the instruction pointer at. The instruction pointer this time has 5251 or RQ in it. This means the instruction pointer is overwritten after exactly 16 characters. Now we need to tell it where to point to which the stack where the user entered password is, is a great place because our shellcode will be there. Looking at the memory dump window we see that the user entered password is located at 3aae. Which means that needs to be after 16 characters in the password. The shellcode we have only takes up 8 characters, so we need 8 more to pad the password with. Entering the our created password solves the challenge.
 
 ```asm
 push #0x7f
@@ -181,3 +181,24 @@ call #0x4532
 ### Solved
 
 password = 30127f00b01232454141414141414141ae3a
+
+## Montevideo
+
+
+Just like the last level we are getting the error, "insn address unaligned", when we enter a password greater than 16 characters. We need to make our own function that unlocks the door again. This time though the shellcode has to contains no 0x00 hexcode, this is because of the strcpy function. Strcpy copies the user password from it's location on the stack to where the stack pointer is. It will stop copying if there is a 0x00 hexcode, so we need to avoid using any. This time we need to add a whole word to the stack, but the interrupt is only one byte. So we need to use a and opcode to get set it to 0x7f using only words. We can then call the interrupt when 0x7f is on the stack, unlocking the door. Now we can use the assembly tool to assemble our function and get it's shell code, 34507f2234f0ff110412b0124c45. Next we will enter the alphabet and see where we overwrite the instruction pointer at. The instruction pointer this time has 5251 or RQ in it. This means the instruction pointer is overwritten after exactly 16 characters. Now we need to tell it where to point to which the stack where the user entered password is, is a great place because our shellcode will be there. Looking at the memory dump window we see that the user entered password is located at 43ee. Which means that needs to be after 16 characters in the password. The shellcode we have only takes up 14 characters, so we need 2 more to pad the password with. Entering the our created password solves the challenge.
+
+```asm
+add #0x227f, r4
+and #0x11ff, r4
+push r4
+call #0x454c
+
+
+43e0:   6045 0300 d445 0000 0a00 0000 4445 4142   `E...E......DEAB
+43f0:   4344 4546 4748 494a 4b4c 4f4d 4e4f 5051   CDEFGHIJKLOMNOPQ
+4400:   5253 5455 5657 5859 5a00 35d0 085a 3f40   RSTUVWXYZ.5..Z?@
+```
+
+### Solved
+
+password = 34507f2234f0ff110412b0124c454141ee43
