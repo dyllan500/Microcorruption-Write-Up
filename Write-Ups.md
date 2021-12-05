@@ -137,3 +137,47 @@ When we put in a password longer than 16 characters we get this message, "insn a
 ### Solved
 
 Password = 414243444546474849505152535455564644
+
+## Reykjavik
+
+
+For this challenge the functions being ran are encrypted at. To figure this out we can get all the current instructions that are ran after a password is entered in. Once we have how the password is checked we can see that it is only compared to if the hexcode of the password equals 0x29cf. That is all we have to enter in to unlock the door.
+
+```asm
+pop sr
+ret
+add #0x6, sp
+cmp #0x29cf, -0x24(r4)
+jnz $+0xc
+add #0x20, sp
+pop r4
+pop r11
+ret
+clr r15
+bis #0xf0, sr
+jmp $-0x4
+```
+
+### Solved
+
+password = cf29
+
+## Whitehorse
+
+
+If we enter a password greater than 16 characters we get the error "insn address unaligned" again meaning we are overwriting the instruction pointer. Unlike the level, *enter old  level, there is no function we can call to unlock the door. This means we need to make out own function that unlocks the door. How we will do this is be looking in the manual for the different types of interrupts. The 0x7f interrupt will unlock the door for us, and it doesn't require any arguments to do so. Now we can use the assembly tool to assemble our function and get it's shell code, 30127f00b0123245. Next we will enter the alphabet and see where we overwrite the instruction pointer at. The instruction pointer this time has 5251 or RQ in it. This means the instruction pointer is overwritten after exactly 16 characters. Now we need to tell it where to point to which the stack where the user entered password is, is a great place because our shellcode will be there. Looking at the memory dump window we see that the user entered password is located at 3aae. Which means that needs to be after 16 characters in the password. The shellcode we have only takes up 8 characters, so we need 8 more to pad the password with. Entering the our created password solves the challenge.
+
+```asm
+push #0x7f
+call #0x4532
+
+
+3a90:   0000 0000 0000 0000 0000 0000 4645 0100   ............FE..
+3aa0:   4645 0300 ba45 0000 0a00 0000 2a45 4142   FE...E......*EAB
+3ab0:   4344 4546 4748 494a 4b4c 4d4e 4f50 5152   CDEFGHIJKLMNOPQR
+3ac0:   5354 5556 5758 595a 0000 0000 0000 0000   STUVWXYZ........
+```
+
+### Solved
+
+password = 30127f00b01232454141414141414141ae3a
