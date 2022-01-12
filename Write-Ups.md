@@ -13,6 +13,7 @@
 - [Jakarta](#jakarta)
 - [Addis Ababa](#addis-ababa)
 - [Novosibirsk](#novosibirsk)
+- [Algiers](#algiers)
 
 ## Introduction
 
@@ -618,3 +619,86 @@ push #0x3
 
 password = c8444141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414141414178256e25
 
+## Algiers
+
+
+If we look at the login function, we can see that on lines 463e and 4648, the program is mallocing 0x10 bytes for the size in which the username and password are going to be placed in. If we then look at lines 4662 and 467c, the program is copying 0x30 bytes of data from user input. That means user input can overflow on the heap and overwrite its metadata. To solve this challenge we need to change the heaps metadata in away to get the unlock_door function to run. If we think about how the free function works, when a section of the heap is getting freed that section will be merged with the previously malloced section. So the size of that heap chunk is added to the previous chunks size. If we can make it so that when a chuck is free that size of the chunk is added to the address that contains the return address for the program. We will be able to overwrite it and change it to the unlock_door function's address. We can run the program with 2 breakpoints one on line 46a2 before the free calls and another 46b2 the return call of the login function. Using the username of 16 As and password 16 Bs we can look and see what is on the heap before free is called. Hitting the first breakpoint we can look at memory addresses 2400-243f and where the return function's address is located. Since we know we can overwrite the heaps metadata if we look and see usernames data overwrites password's heap section. Address 241f contains the previous heap address which points to the start of the heap with then points to the usernames section. Address 2420 contains the next heap section's address 2434. Finally address 2422 contains the size of the password's heap section. Since we control both the previous address and the size of the heaps section, we can user the username to add the return address's stack address location, so we can add the size to it. We do want to keep its pointer to the next heap section the same though. Now we can continue the program so we hit the second breakpoint. We can see that the stack pointer is pointing at address 439a, so that is the address that contains the return address. We now have all the necessary information to craft our exploit. For the username we are doing 16 As or 0x41 this time, then we add the address of the return pointer as the previous heap address metadata. The problem is the size of the heap isn't added to that address it will be added to the address 4 bytes up. So if minus 4 from 439a we get 4396 or for endianness 9643. That's what we need to use as our previous address. Next we will add 3424 for the next address on heap. And for the size we need to subtract 0x4564 - 0x4440 = 0x124 minus 0x1 for the in use bit so 0x123. Next we can create the password, which will be 16 Bs or 0x42, then the previous heap address 241e that contains the password data. Then we will add the next address, which will be 2408 or where the username data is, then finally 0x1 for the size of the next heap chunk. The reason we do this is so that it doesn't get merged with the one we preforming the exploit with. So for the username is "41414141414141414141414141414141964334242401" and the password is "424242424242424242424242424242421e24082401". If we try this username and password combo out we don't get the door to unlock. If we look at the address the login function is returning to we can see that we indeed do change it, but to 456a. I am not sure why its offset by 0x6 but if we subtract that from the size we put on the heap 0x123 - 0x6 = 0x11f. If had that change to the username we then finally get the door to unlock solving the challenge.
+
+```asm
+4440 <__stop_progExec__>
+4440:  32d0 f000      bis	#0xf0, sr
+4444:  fd3f           jmp	#0x4440 <__stop_progExec__+0x0>
+
+4564 <unlock_door>
+4564:  3012 7f00      push	#0x7f
+4568:  b012 b646      call	#0x46b6 <INT>
+456c:  2153           incd	sp
+456e:  3041           ret
+
+463a <login>
+463a:  0b12           push	r11
+463c:  0a12           push	r10
+463e:  3f40 1000      mov	#0x10, r15
+4642:  b012 6444      call	#0x4464 <malloc>
+4646:  0a4f           mov	r15, r10
+4648:  3f40 1000      mov	#0x10, r15
+464c:  b012 6444      call	#0x4464 <malloc>
+4650:  0b4f           mov	r15, r11
+4652:  3f40 9a45      mov	#0x459a, r15
+4656:  b012 1a47      call	#0x471a <puts>
+465a:  3f40 c845      mov	#0x45c8, r15
+465e:  b012 1a47      call	#0x471a <puts>
+4662:  3e40 3000      mov	#0x30, r14
+4666:  0f4a           mov	r10, r15
+4668:  b012 0a47      call	#0x470a <getsn>
+466c:  3f40 c845      mov	#0x45c8, r15
+4670:  b012 1a47      call	#0x471a <puts>
+4674:  3f40 d445      mov	#0x45d4, r15
+4678:  b012 1a47      call	#0x471a <puts>
+467c:  3e40 3000      mov	#0x30, r14
+4680:  0f4b           mov	r11, r15
+4682:  b012 0a47      call	#0x470a <getsn>
+4686:  0f4b           mov	r11, r15
+4688:  b012 7045      call	#0x4570 <test_password_valid>
+468c:  0f93           tst	r15
+468e:  0524           jz	#0x469a <login+0x60>
+4690:  b012 6445      call	#0x4564 <unlock_door>
+4694:  3f40 0b46      mov	#0x460b, r15
+4698:  023c           jmp	#0x469e <login+0x64>
+469a:  3f40 1b46      mov	#0x461b, r15
+469e:  b012 1a47      call	#0x471a <puts>
+46a2:  0f4b           mov	r11, r15
+46a4:  b012 0845      call	#0x4508 <free>
+46a8:  0f4a           mov	r10, r15
+46aa:  b012 0845      call	#0x4508 <free>
+46ae:  3a41           pop	r10
+46b0:  3b41           pop	r11
+46b2:  3041           ret
+
+Register State
+
+pc  46b2  sp  439a  sr  0000  cg  0000
+r04 0000  r05 5a08  r06 0000  r07 0000
+r08 0000  r09 0000  r10 0000  r11 0000
+r12 0046  r13 006c  r14 241e  r15 2408
+
+Live Memory Dump
+
+2400:   0824 0010 0000 0000 0824 1e24 2100 4141   .$.......$.$!.AA
+2410:   4141 4141 4141 4141 4141 4141 4141 0024   AAAAAAAAAAAAAA.$
+2420:   3424 2100 4242 4242 4242 4242 4242 4242   4$!.BBBBBBBBBBBB
+2430:   4242 4242 0024 0824 9c1f 0000 0000 0000   BBBB.$.$........
+
+Register State
+
+pc  456a  sp  439c  sr  0000  cg  0000
+r04 0000  r05 5a08  r06 0000  r07 0000
+r08 0000  r09 0000  r10 0000  r11 2434
+r12 0046  r13 0170  r14 241e  r15 2408
+
+```
+
+### Solved
+
+username = 41414141414141414141414141414141964334241f01
+password = 424242424242424242424242424242421e24082401
